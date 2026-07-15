@@ -14,4 +14,4 @@ All notable changes to this project will be documented in this file.
 - **`/sandbox` command** — Shows current bash sandbox config. `/sandbox reload` live-reloads after manual edits to `sandbox.json`.
 - **Audit log** — Append-only JSONL at `~/.pi/agent/audit.log`. One entry per blocked/allowed/always decision.
 - **`sandbox.example.json`** — Documented reference config showing all available fields.
-- **Skill** — `skills/pi-security/SKILL.md` explains the security model and how to configure it.
+- **Skill** — `skills/pi-secure-it/SKILL.md` explains the security model and how to configure it.

@@ -1,6 +1,6 @@
 # Pi Security — Skill
 
-Use this skill when the user asks about the pi-security extension, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior.
+Use this skill when the user asks about the pi-secure-it extension, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior.
 
 ## What this extension does
 

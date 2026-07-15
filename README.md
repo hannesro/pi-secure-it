@@ -1,4 +1,4 @@
-# pi-security
+# pi-secure-it
 
 Two-layer security extension for the [Pi coding agent](https://pi.dev):
 
@@ -12,13 +12,13 @@ When a tool call is blocked you get an interactive prompt — no need to leave p
 
 ```bash
 # From npm (once published)
-pi install npm:pi-security
+pi install npm:pi-secure-it
 
 # From git
-pi install git:github.com/earendil-works/pi-security
+pi install git:github.com/hannesro/pi-secure-it
 
 # Try without installing
-pi -e git:github.com/earendil-works/pi-security
+pi -e git:github.com/hannesro/pi-secure-it
 ```
 
 ## Requirements
@@ -100,8 +100,8 @@ Every block/allow/always decision is appended to `~/.pi/agent/audit.log` as a JS
 ## Development
 
 ```bash
-git clone https://github.com/earendil-works/pi-security
-cd pi-security
+git clone https://github.com/hannesro/pi-secure-it
+cd pi-secure-it
 npm install          # installs typescript for typecheck
 npm run typecheck    # type-checks against pi's bundled .d.ts files
 pi -e .              # load extension for the current session only
