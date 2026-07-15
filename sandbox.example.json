@@ -1,0 +1,84 @@
+{
+  "_comment": "Copy this file to ~/.pi/agent/extensions/sandbox.json (global) or <cwd>/.pi/sandbox.json (project-local). Project-local values are merged on top of global. See README.md for full documentation.",
+
+  "enabled": true,
+
+  "network": {
+    "_comment_allowedDomains": "Domains that fetch_content / get_search_content may reach. Empty list = allow all.",
+    "allowedDomains": [
+      "registry.npmjs.org",
+      "registry.yarnpkg.com",
+      "npmjs.org",
+      "*.npmjs.org",
+      "pypi.org",
+      "*.pypi.org",
+      "files.pythonhosted.org",
+      "github.com",
+      "*.github.com",
+      "api.github.com",
+      "raw.githubusercontent.com",
+      "objects.githubusercontent.com",
+      "codeload.github.com",
+      "crates.io",
+      "static.crates.io",
+      "proxy.golang.org",
+      "sum.golang.org"
+    ],
+    "_comment_deniedDomains": "Explicit block-list checked before allowedDomains.",
+    "deniedDomains": []
+  },
+
+  "filesystem": {
+    "_comment_denyRead": "Layer 1 (bash) AND Layer 2 (model read tool). Neither subprocesses nor the model read tool may access these.",
+    "denyRead": [
+      "~/.ssh",
+      ".env",
+      ".env.*",
+      "~/.gnupg"
+    ],
+
+    "_comment_modelDenyRead": "Layer 2 ONLY. Token/credential files inside dirs that CLI tools (gh, aws, kubectl, docker) need to read. The model's `read` tool is blocked; subprocesses still work. Caveat: the model could `bash cat` these — `denyRead` is the hard block for that.",
+    "modelDenyRead": [
+      "~/.config/gh/hosts.yml",
+      "~/.netrc",
+      "~/.aws/credentials",
+      "~/.aws/config",
+      "~/.kube/config",
+      "~/.docker/config.json",
+      "~/.npmrc",
+      "~/.pypirc",
+      "~/.cargo/credentials.toml",
+      "~/.gitconfig"
+    ],
+
+    "_comment_allowWrite": "Layer 2: the model's write/edit tools may only write inside these roots. '.' = cwd.",
+    "allowWrite": [
+      ".",
+      "/tmp"
+    ],
+
+    "_comment_denyWrite": "Layer 1 + Layer 2: writes always blocked regardless of allowWrite.",
+    "denyWrite": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "~/.gnupg",
+      "~/.ssh/**"
+    ]
+  },
+
+  "_comment_subagent": "Layer 3: stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode).",
+  "subagent": {
+    "network": "allow"
+  },
+
+  "_comment_overrides": "Additive overrides written by ask-tier prompts. You can also edit by hand. These are merged on top of the main policy.",
+  "overrides": {
+    "allowRead": [],
+    "allowWrite": [],
+    "allowDomains": []
+  }
+}

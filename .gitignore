@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+sandbox/node_modules/
+package-lock.json
+sandbox/package-lock.json
+*.bak.*
+.pi/sandbox.json
+.pi/audit.log
+# dummy test fixtures (not part of the package)
+.env.test
+test.pem
