@@ -17,8 +17,23 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - run: npm install
 
       - run: npm run typecheck
+
+  test:
+    # Layer 2 unit tests assume POSIX paths and real symlink support, so
+    # they must run on Linux/macOS, not Windows.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install
+
+      - run: npm test
