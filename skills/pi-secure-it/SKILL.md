@@ -1,3 +1,8 @@
+---
+name: pi-secure-it
+description: Use this skill when the user asks about the pi-secure-it extension, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior. Covers the two-layer sandbox (OS-level bash sandbox and in-process tool guard), policy file locations and fields, ask-tier prompt options, absolute-deny paths, escape hatches (--yolo, --no-sandbox), the audit log, and common tasks like allowing a new domain or write path.
+---
+
 # Pi Security — Skill
 
 Use this skill when the user asks about the pi-secure-it extension, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior.
