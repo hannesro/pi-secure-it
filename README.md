@@ -107,6 +107,31 @@ npm run typecheck    # type-checks against pi's bundled .d.ts files
 pi -e .              # load extension for the current session only
 ```
 
+## Releasing
+
+Releases are fully automated with [semantic-release](https://semantic-release.gitbook.io/), driven by [Conventional Commits](https://www.conventionalcommits.org/) on `main`:
+
+- `fix: ...` → patch release
+- `feat: ...` → minor release
+- `feat!: ...` or a `BREAKING CHANGE:` footer → major release
+- `chore:`, `docs:`, `refactor:`, `test:`, `ci:` etc. → no release by themselves
+
+Commit messages on pull requests are checked by `commitlint` (`.github/workflows/commitlint.yml`). On every push to `main`, `.github/workflows/release.yml` runs `semantic-release`, which:
+
+1. Determines the next version from commits since the last release.
+2. Generates release notes and prepends them to `CHANGELOG.md`.
+3. Publishes to npm (`npm publish --provenance`) and bumps `package.json`.
+4. Creates the `vX.Y.Z` git tag and GitHub release.
+5. Commits `CHANGELOG.md`/`package.json` back to `main` (`chore(release): ... [skip ci]`).
+
+Nothing to run locally beyond writing conventional commit messages — just merge to `main`. Publishing uses npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC) — no `NPM_TOKEN` secret required. One-time setup on npmjs.com:
+
+1. Go to the package's **Settings → Trusted Publisher** on npmjs.com.
+2. Select **GitHub Actions** and configure: organization/user `hannesro`, repository `pi-secure-it`, workflow filename `release.yml`, allowed action `npm publish`.
+3. (Recommended) Under **Settings → Publishing access**, choose "Require two-factor authentication and disallow tokens" to disable classic token-based publishing entirely, and revoke any automation tokens you previously created.
+
+`GITHUB_TOKEN` is provided automatically by Actions; the `id-token: write` permission in `release.yml` is what lets npm's OIDC exchange work.
+
 ## License
 
 MIT

@@ -19,8 +19,8 @@
 import { existsSync, readFileSync, realpathSync, mkdirSync, appendFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, resolve, basename, join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { isToolCallEventType, getAgentDir } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 // ---------- Policy ----------
 

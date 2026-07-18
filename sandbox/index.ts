@@ -46,8 +46,8 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { type BashOperations, createBashTool, getAgentDir } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type BashOperations, createBashTool, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 interface SandboxConfig extends SandboxRuntimeConfig {
 	enabled?: boolean;
@@ -225,7 +225,7 @@ function createSandboxedBashOps(opts?: {
 				let outputTail = "";
 				const captureOut = (chunk: Buffer | string) => {
 					outputTail = (outputTail + chunk.toString()).slice(-2048);
-					onData(chunk);
+					onData(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
 				};
 				child.stdout?.on("data", captureOut);
 				child.stderr?.on("data", captureOut);
@@ -402,7 +402,7 @@ export default function (pi: ExtensionAPI) {
 						allowWrite: config.filesystem.allowWrite,
 						denyWrite: config.filesystem.denyWrite,
 					}
-				: undefined,
+				: { denyRead: [], allowWrite: [], denyWrite: [], disabled: true },
 			ignoreViolations: configExt.ignoreViolations,
 			enableWeakerNestedSandbox: configExt.enableWeakerNestedSandbox,
 		});
@@ -483,7 +483,7 @@ export default function (pi: ExtensionAPI) {
 							allowWrite: config.filesystem.allowWrite,
 							denyWrite: config.filesystem.denyWrite,
 						}
-					: undefined,
+					: { denyRead: [], allowWrite: [], denyWrite: [], disabled: true },
 				ignoreViolations: configExt.ignoreViolations,
 				enableWeakerNestedSandbox: configExt.enableWeakerNestedSandbox,
 			});

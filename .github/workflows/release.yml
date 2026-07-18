@@ -1,0 +1,54 @@
+name: Release
+
+# Fully automated: semantic-release parses Conventional Commit messages on
+# every push to main, decides the next version (or skips if nothing
+# releasable), updates CHANGELOG.md, publishes to npm, tags, and creates the
+# GitHub release. No manual `npm version` step.
+#
+# Publishing uses npm Trusted Publishing (OIDC) — no NPM_TOKEN secret needed.
+# Configure the trusted publisher once at:
+#   https://www.npmjs.com/package/pi-secure-it/access -> Trusted Publisher
+#   Provider: GitHub Actions, Repo: hannesro/pi-secure-it,
+#   Workflow filename: release.yml
+# Requires npm CLI >= 11.5.1 and Node >= 22.14, hence the explicit npm upgrade
+# step below and node-version 22.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # to push the release commit/tag and create the GH release
+  issues: write      # semantic-release comments on related issues
+  pull-requests: write
+  id-token: write    # required for OIDC trusted publishing + npm provenance
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # semantic-release needs full history/tags
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: false   # never cache in release builds
+
+      - run: npm install -g npm@latest   # ensure npm >= 11.5.1 for trusted publishing
+
+      - run: npm install
+
+      - run: npm run typecheck
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
