@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+# [1.1.0](https://github.com/hannesro/pi-secure-it/compare/v1.0.0...v1.1.0) (2026-07-19)
+
+
+### Features
+
+* add CLAUDE.md for documentation on pi-secure-it extension and conventions ([b5e6487](https://github.com/hannesro/pi-secure-it/commit/b5e6487c7334be0bc42a7af7dff96a6aaa3a5dcf))
+
 # 1.0.0 (2026-07-19)
 
 
