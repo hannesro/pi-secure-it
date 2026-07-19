@@ -29,8 +29,8 @@ function matchPattern(absPath, pattern, cwd) {
 	return base === p;
 }
 
-const cwd = "/Users/" + (process.env.USER || "you") + "/.pi/playground";
 const home = homedir();
+const cwd = home + "/.pi/playground";
 const cases = [
 	[`${home}/.ssh/id_rsa`,                                        "~/.ssh",          true,  "denyRead ~/.ssh hits child"],
 	[`${home}/.ssh`,                                               "~/.ssh",          true,  "denyRead ~/.ssh hits self"],
