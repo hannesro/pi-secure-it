@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+# 1.0.0 (2026-07-19)
+
+
+### Features
+
+* Implement CI/CD workflows with semantic-release, updated dependencies ([f53b39a](https://github.com/hannesro/pi-secure-it/commit/f53b39a8be162d22a1cddca123ae3c00b7dca70a))
+* Update CI configuration and add test script to package.json ([bc43b09](https://github.com/hannesro/pi-secure-it/commit/bc43b09f69a4ef849d39c045c3dd609d316e7728))
+
 ## [1.0.0] - 2026-07-15
 
 ### Added
