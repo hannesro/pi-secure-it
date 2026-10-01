@@ -22,7 +22,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, resolve, basename, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { filterGrepOutput, policyFileError, readPolicyForUpdate } from "./lib/guard-lib";
+import { type Layer2Mode, filterGrepOutput, layer2Mode, policyFileError, readPolicyForUpdate } from "./lib/guard-lib";
 
 // ---------- Policy ----------
 
@@ -52,6 +52,14 @@ interface Policy {
 	 * to opt in.
 	 */
 	subagent?: { network?: "allow" | "deny" | "research-only" };
+	/**
+	 * Layer 2 role (ADR-011). "guard": decide and prompt for every policy miss.
+	 * "floor": run beside @gotgenes/pi-permission-system, which decides paths;
+	 * Layer 2 keeps only the absolute-deny floor, the grep output filter and the
+	 * domain allowlist, and never prompts for ordinary misses. Unset: "floor"
+	 * when pi-permission-system is active for the session, else "guard".
+	 */
+	layer2?: Layer2Mode;
 }
 
 // Keep in sync with sandbox/index.ts DEFAULT_CONFIG.
@@ -89,6 +97,7 @@ function loadPolicy(cwd: string): Policy {
 			if (o.network) policy.network = { ...policy.network, ...o.network };
 			if (o.filesystem) policy.filesystem = { ...policy.filesystem, ...o.filesystem };
 			if (o.subagent) policy.subagent = { ...policy.subagent, ...o.subagent };
+			if (o.layer2 === "guard" || o.layer2 === "floor") policy.layer2 = o.layer2;
 			if (o.overrides) {
 				policy.overrides = {
 					allowRead: [...(policy.overrides?.allowRead ?? []), ...(o.overrides.allowRead ?? [])],
@@ -290,7 +299,7 @@ function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: s
 // ---------- Ask-tier prompt ----------
 
 type AskKind = { layer: 2; tool: string; subject: string; reason: string; overrideKind: OverrideKind; overrideValue: string };
-type Decision = "yes" | "no" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
+type Decision = "yes" | "no" | "session" | "session-folder" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
 type UICtx = {
 	cwd: string;
 	hasUI?: boolean;
@@ -300,6 +309,24 @@ type UICtx = {
 		notify: (m: string, l?: string) => void;
 	};
 };
+
+// ---------- Layer 2 role and session grants (ADR-010, ADR-011) ----------
+
+/**
+ * Grants from "yes — for this session" in guard mode. In memory only, cleared
+ * on session_start, never written to sandbox.json, never consulted for the
+ * absolute-deny tier.
+ */
+const sessionGrants: Array<{ kind: OverrideKind; value: string }> = [];
+
+function sessionGranted(k: AskKind, cwd: string): string | null {
+	for (const g of sessionGrants) {
+		if (g.kind !== k.overrideKind) continue;
+		const hit = g.kind === "allowDomains" ? domainMatches(k.overrideValue, g.value) : matchPattern(k.subject, g.value, cwd);
+		if (hit) return g.value;
+	}
+	return null;
+}
 
 async function askDecision(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null): Promise<Decision> {
 	if (ctx.hasUI === false) return "no"; // subagents, -p, JSON mode
@@ -314,31 +341,53 @@ async function askDecision(ctx: UICtx, k: AskKind, absoluteDenyPattern: string |
 		const check = `Really allow ${k.tool} on credential material?\n\n${k.subject}`;
 		return (await ctx.ui.select(check, step2, { timeout: 30_000 })) === step2[1] ? "yes" : "no";
 	}
-	type Decision2 = "yes" | "no" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
 	const isFileKind = k.overrideKind === "allowRead" || k.overrideKind === "allowWrite";
 	const parentDir = isFileKind ? dirname(k.overrideValue) : null;
 	const title = `Layer 2 block: ${k.tool}\n\nSubject: ${k.subject}\nReason:  ${k.reason}\n\nAllow?`;
-	const options: string[] = [
-		"yes — this once",
-		"no  — block (default)",
-		"always for CURRENT project — whitelist this file (.pi/sandbox.json)",
-	];
+	// "no" first and pre-selected: Enter alone blocks (ADR-010).
+	const options: string[] = ["no  — block (default)", "yes — this once", "yes — for this session (not saved)"];
+	if (isFileKind) options.push(`yes — for this session: parent folder ${parentDir} (not saved)`);
+	options.push("always for CURRENT project — whitelist this file (.pi/sandbox.json)");
 	if (isFileKind) options.push(`always for CURRENT project — whitelist parent folder ${parentDir} (.pi/sandbox.json)`);
 	options.push("always for ALL projects — whitelist this file (~/.pi/agent/extensions/sandbox.json)");
 	if (isFileKind) options.push(`always for ALL projects — whitelist parent folder ${parentDir} (~/.pi/agent/extensions/sandbox.json)`);
 	const chosen = await ctx.ui.select(title, options, { timeout: 60_000 });
-	if (chosen === options[0]) return "yes";
-	if (!chosen || chosen === options[1]) return "no";
-	if (chosen.startsWith("always for CURRENT project")) return chosen.includes("parent folder") ? ("always-cwd-folder" as Decision) : "always-cwd";
-	if (chosen.startsWith("always for ALL projects")) return chosen.includes("parent folder") ? ("always-global-folder" as Decision) : "always-global";
+	if (!chosen || chosen === options[0]) return "no";
+	if (chosen === options[1]) return "yes";
+	if (chosen.startsWith("yes — for this session")) return chosen.includes("parent folder") ? "session-folder" : "session";
+	if (chosen.startsWith("always for CURRENT project")) return chosen.includes("parent folder") ? "always-cwd-folder" : "always-cwd";
+	if (chosen.startsWith("always for ALL projects")) return chosen.includes("parent folder") ? "always-global-folder" : "always-global";
 	return "no";
 }
 
-async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null): Promise<{ block: true; reason: string } | null> {
+async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null, mode: Layer2Mode): Promise<{ block: true; reason: string } | null> {
+	// The absolute-deny tier skips floor mode and session grants: it always goes
+	// to the human two-step menu, and is blocked headless.
+	if (!absoluteDenyPattern) {
+		if (mode === "floor") {
+			// pi-permission-system decides paths. Domains it cannot see (it gates
+			// web tools by name only), so the allowlist still holds, without a prompt.
+			if (k.overrideKind !== "allowDomains") return null;
+			audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "floor-deny", cwd: ctx.cwd });
+			return { block: true, reason: `${k.tool} blocked: ${k.reason}. The user can allow it by adding the domain to network.allowedDomains in sandbox.json.` };
+		}
+		const granted = sessionGranted(k, ctx.cwd);
+		if (granted) {
+			audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "session-grant", grant: granted, cwd: ctx.cwd });
+			return null;
+		}
+	}
 	const decision = await askDecision(ctx, k, absoluteDenyPattern);
 	if (decision === "no") {
 		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "no", cwd: ctx.cwd });
 		return { block: true, reason: `${k.tool} blocked: ${k.reason}` };
+	}
+	if (decision === "session" || decision === "session-folder") {
+		const value = decision === "session-folder" ? dirname(k.overrideValue) : k.overrideValue;
+		sessionGrants.push({ kind: k.overrideKind, value });
+		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision, grant: value, cwd: ctx.cwd });
+		ctx.ui.notify(`security-guard: allowed for this session (not saved) → ${value}`, "info");
+		return null;
 	}
 	if (decision === "always-cwd" || decision === "always-global" || decision === "always-cwd-folder" || decision === "always-global-folder") {
 		if (absoluteDenyPattern) {
@@ -423,19 +472,21 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		active = true;
-		ctx.ui.notify("🔒 security-guard (Layer 2) active", "info");
+		sessionGrants.length = 0;
+		ctx.ui.notify(`🔒 security-guard (Layer 2) active, role: ${policy.layer2 ?? "guard, or floor when pi-permission-system is active"}`, "info");
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
 		if (!active) return;
 		const policy = loadPolicy(ctx.cwd);
+		const mode = layer2Mode(policy, ctx as never);
 
 		// --- Path-based gates (with ask-tier prompt) ---
 		if (isToolCallEventType("read", event)) {
 			const reason = isDeniedRead(event.input.path, ctx.cwd, policy);
 			if (reason) {
 				const abs = canonicalize(event.input.path, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "read", subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
+				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "read", subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd), mode);
 				if (result) return result;
 			}
 		}
@@ -450,7 +501,7 @@ export default function (pi: ExtensionAPI) {
 			const reason = isDeniedRead(searchRoot, ctx.cwd, policy);
 			if (reason) {
 				const abs = canonicalize(searchRoot, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
+				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd), mode);
 				if (result) return result;
 			}
 		}
@@ -458,7 +509,7 @@ export default function (pi: ExtensionAPI) {
 			const reason = isDeniedWrite(event.input.path, ctx.cwd, policy);
 			if (reason) {
 				const abs = canonicalize(event.input.path, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "write", subject: abs, reason, overrideKind: "allowWrite", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
+				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "write", subject: abs, reason, overrideKind: "allowWrite", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd), mode);
 				if (result) return result;
 			}
 		}
@@ -466,7 +517,7 @@ export default function (pi: ExtensionAPI) {
 			const reason = isDeniedWrite(event.input.path, ctx.cwd, policy);
 			if (reason) {
 				const abs = canonicalize(event.input.path, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "edit", subject: abs, reason, overrideKind: "allowWrite", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
+				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "edit", subject: abs, reason, overrideKind: "allowWrite", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd), mode);
 				if (result) return result;
 			}
 		}
@@ -490,7 +541,7 @@ export default function (pi: ExtensionAPI) {
 				const reason = isAllowedUrl(u, policy);
 				if (!reason) continue;
 				const host = hostnameOf(u) ?? u;
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: u, reason, overrideKind: "allowDomains", overrideValue: host }, null);
+				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: u, reason, overrideKind: "allowDomains", overrideValue: host }, null, mode);
 				if (result) return result;
 			}
 		}
@@ -551,6 +602,8 @@ export default function (pi: ExtensionAPI) {
 				`  cwd:               ${ctx.cwd}`,
 				`  hasUI:             ${(ctx as { hasUI?: boolean }).hasUI !== false}`,
 				`  subagent.network:  ${policy.subagent?.network ?? "allow"}`,
+				`  layer2:            ${layer2Mode(policy, ctx as never)}${policy.layer2 ? "" : " (auto-detected)"}`,
+				`  session grants:    ${sessionGrants.map((g) => `${g.kind}:${g.value}`).join(", ") || "(none)"}`,
 				"",
 				"Filesystem:",
 				`  denyRead:    ${policy.filesystem.denyRead.join(", ") || "(none)"}`,

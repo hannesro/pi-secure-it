@@ -75,6 +75,8 @@
     "network": "allow"
   },
 
+  "_comment_layer2": "guard: Layer 2 decides and prompts. floor: beside @gotgenes/pi-permission-system, which decides paths; Layer 2 keeps the absolute-deny tier, the grep output filter and the domain allowlist. Unset: floor when pi-permission-system is active, else guard. See ADR-011.",
+
   "_comment_overrides": "Additive overrides written by ask-tier prompts. You can also edit by hand. These are merged on top of the main policy.",
   "overrides": {
     "allowRead": [],

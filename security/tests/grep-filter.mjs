@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { filterGrepOutput, policyFileError, readPolicyForUpdate } from '../../lib/guard-lib.ts';
+import { filterGrepOutput, layer2Mode, permissionSystemActive, PERMISSION_SYSTEM_SERVICES, policyFileError, readPolicyForUpdate } from '../../lib/guard-lib.ts';
 
 let pass = 0, fail = 0;
 function check(name, cond) { if (cond) pass++; else { fail++; console.log('FAIL:', name); } }
@@ -47,6 +47,17 @@ let threw = false;
 try { readPolicyForUpdate(bad); } catch { threw = true; }
 check('readPolicyForUpdate: refuses to overwrite unparseable file', threw);
 rmSync(dir, { recursive: true, force: true });
+
+// Layer 2 role detection (ADR-011)
+const ctxFor = (id) => ({ sessionManager: { getSessionId: () => id } });
+const store = { [PERMISSION_SYSTEM_SERVICES]: new Map([['s1', {}]]) };
+check('detects pi-permission-system for this session', permissionSystemActive(ctxFor('s1'), store));
+check('other session is not detected', !permissionSystemActive(ctxFor('s2'), store));
+check('no service map: not detected', !permissionSystemActive(ctxFor('s1'), {}));
+check('unset role + pi-permission-system: floor', layer2Mode({}, ctxFor('s1'), store) === 'floor');
+check('unset role, no pi-permission-system: guard', layer2Mode({}, ctxFor('s1'), {}) === 'guard');
+check('explicit guard wins over detection', layer2Mode({ layer2: 'guard' }, ctxFor('s1'), store) === 'guard');
+check('explicit floor without pi-permission-system', layer2Mode({ layer2: 'floor' }, ctxFor('x'), {}) === 'floor');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

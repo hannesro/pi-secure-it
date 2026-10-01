@@ -55,11 +55,16 @@ Merged in order (later wins):
 
 Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` are always high-risk blocks. To allow one call the user picks *allow this ONE call* in a menu that defaults to block, then *Yes* in a second menu that also defaults to No. Enter-Enter blocks. In headless mode these calls are always blocked. The "always" option is never available for these paths.
 
+## Layer 2 role: guard or floor
+
+`layer2` in `sandbox.json` is `"guard"` or `"floor"`; unset means floor when @gotgenes/pi-permission-system is active for the session, else guard. In floor mode pi-permission-system decides and prompts for paths; Layer 2 only enforces the absolute-deny tier, filters grep output from denied files, and blocks web domains outside `network.allowedDomains` without prompting. `/security` shows the active role. If a user sees no Layer 2 prompt for a `denyRead` path, check whether floor mode is active and point them at pi-permission-system's `path` rules.
+
 ## Ask-tier prompt options
 
-When a normal (non-absolute-deny) call is blocked interactively:
+When a normal (non-absolute-deny) call is blocked in guard mode:
+- **no — block** — hard deny (default, pre-selected)
 - **yes — this once** — allow just this call
-- **no — block** — hard deny (default)
+- **yes — for this session** — this file, its parent folder, or this domain until the session ends; not saved
 - **always for CURRENT project** — whitelist this file in `<cwd>/.pi/sandbox.json`
 - **always for CURRENT project (folder)** — whitelist the parent directory
 - **always for ALL projects** — whitelist in `~/.pi/agent/extensions/sandbox.json`

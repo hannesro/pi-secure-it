@@ -62,6 +62,20 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
 }
 ```
 
+### Running beside @gotgenes/pi-permission-system
+
+[pi-permission-system](https://pi.dev/packages/@gotgenes/pi-permission-system) is a full decision layer (path, bash, MCP and skill rules, `external_directory`, session grants, subagent forwarding). It does not sandbox, and pi-secure-it does. Install both and Layer 2 switches to **floor** automatically (ADR-011):
+
+- pi-permission-system decides and prompts for paths; Layer 2 no longer prompts for them, so nothing is asked twice;
+- Layer 2 keeps the absolute-deny tier, the grep output filter (pi-permission-system checks only the search root) and the domain allowlist for web tools (it gates those by tool name only);
+- Layer 1 sandboxes bash as before.
+
+Force a role with `"layer2": "guard"` or `"layer2": "floor"` in `sandbox.json`. In floor mode, mirror any `modelDenyRead` paths as `path` deny rules in pi-permission-system.
+
+### Ask-tier prompt
+
+`no — block` is pre-selected. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (file, folder or domain), kept in memory until the session ends (ADR-010).
+
 ### Absolute-deny tier
 
 Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` is always a high-risk block. Allowing one call takes two menus, each with "block" pre-selected: pick *allow this ONE call*, then confirm with *Yes*. Pressing Enter twice blocks. The "always" option is never offered (ADR-009).

@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-01T19:33:01.627Z
+Generated: 2026-10-01T21:19:45.387Z
 
 ## At a glance
 
@@ -42,19 +42,19 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 ### L2 — In-process tool guard  ✅ shipped
 
-Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008).
+Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Role guard (decide and prompt) or floor beside @gotgenes/pi-permission-system (absolute-deny tier, grep filter, domain allowlist only), auto-detected (ADR-011).
 
 **Source files**
 
-- ✓ `security-guard.ts` — 568 lines, mtime 2026-10-01
-- ✓ `lib/guard-lib.ts` — 87 lines, mtime 2026-10-01
+- ✓ `security-guard.ts` — 635 lines, mtime 2026-10-01
+- ✓ `lib/guard-lib.ts` — 108 lines, mtime 2026-10-01
 
 **Tests**
 
 - `L2-paths` — `node security/tests/path-matcher.mjs` → expects PASS=13, FAIL=0
 - `L2-urls` — `node security/tests/url-allowlist.mjs` → expects PASS=8, FAIL=0
 - `L2-symlink` — `node security/tests/symlink-escape.mjs` → expects PASS=5, FAIL=0
-- `L2-grep-filter` — `node security/tests/grep-filter.mjs` → expects PASS=15, FAIL=0
+- `L2-grep-filter` — `node security/tests/grep-filter.mjs` → expects PASS=22, FAIL=0
 
 **Known gaps / accepted risks**
 
@@ -62,6 +62,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - fetch_content redirects are not re-checked against the allowlist
 - find and ls still print names (not contents) of denied files beneath an allowed root (ADR-008, accepted)
 - The grep output filter parses pi's grep line format; a format change leaves lines unfiltered until grep-filter.mjs is updated
+- Floor mode leaves direct reads of denyRead/modelDenyRead paths to pi-permission-system rules; users must mirror them as path denies (ADR-011)
 
 ### L3 — Subagent posture  🟢 shipped-opt-in
 
@@ -69,7 +70,7 @@ Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode)
 
 **Source files**
 
-- ✓ `security-guard.ts` — 568 lines, mtime 2026-10-01
+- ✓ `security-guard.ts` — 635 lines, mtime 2026-10-01
 
 **Config**
 

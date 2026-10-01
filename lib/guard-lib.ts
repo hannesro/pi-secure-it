@@ -84,3 +84,24 @@ export function filterGrepOutput(text: string, isDenied: (printedPath: string) =
 	}
 	return { text: kept.join("\n"), removedLines, removedFiles: [...removedFiles] };
 }
+
+// ---------- Layer 2 role (ADR-011) ----------
+
+export type Layer2Mode = "guard" | "floor";
+
+/** Where @gotgenes/pi-permission-system publishes one service per session (its cross-extension API). */
+export const PERMISSION_SYSTEM_SERVICES = Symbol.for("@gotgenes/pi-permission-system:session-services");
+
+type SessionLike = { sessionManager?: { getSessionId?: () => string } };
+
+/** Whether pi-permission-system published a service for this session. */
+export function permissionSystemActive(ctx: SessionLike, store: Record<symbol, unknown> = globalThis as Record<symbol, unknown>): boolean {
+	const services = store[PERMISSION_SYSTEM_SERVICES];
+	const id = ctx.sessionManager?.getSessionId?.();
+	return services instanceof Map && typeof id === "string" && services.has(id);
+}
+
+/** The configured role, or "floor" when pi-permission-system is active for the session, else "guard". */
+export function layer2Mode(policy: { layer2?: Layer2Mode }, ctx: SessionLike, store?: Record<symbol, unknown>): Layer2Mode {
+	return policy.layer2 ?? (permissionSystemActive(ctx, store) ? "floor" : "guard");
+}
