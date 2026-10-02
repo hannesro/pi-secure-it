@@ -16,6 +16,7 @@
         "~/.pi/agent/extensions/sandbox.json"
       ],
       "tests": [
+        { "id": "L1-attribution", "command": "node security/tests/l1-attribution.mjs", "expected": "PASS=24, FAIL=0" },
         { "id": "L1-smoke", "command": "bash docs/security/run-tests.sh", "expected": "PASS=19, FAIL=0 (+1 SKIP, +1 XFAIL)" }
       ],
       "knownGaps": [

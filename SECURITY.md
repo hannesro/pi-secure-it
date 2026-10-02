@@ -2,13 +2,13 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-01T21:19:45.387Z
+Generated: 2026-10-02T06:12:01.171Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-smoke` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-smoke` |
 | **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
@@ -29,11 +29,12 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `sandbox/index.ts` — 551 lines, mtime 2026-10-01
+- ✓ `sandbox/index.ts` — 565 lines, mtime 2026-10-02
 - ✓ `~/.pi/agent/extensions/sandbox.json` — 84 lines, mtime 2026-10-01
 
 **Tests**
 
+- `L1-attribution` — `node security/tests/l1-attribution.mjs` → expects PASS=24, FAIL=0
 - `L1-smoke` — `bash docs/security/run-tests.sh` → expects PASS=19, FAIL=0 (+1 SKIP, +1 XFAIL)
 
 **Known gaps / accepted risks**
@@ -47,7 +48,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 **Source files**
 
 - ✓ `security-guard.ts` — 635 lines, mtime 2026-10-01
-- ✓ `lib/guard-lib.ts` — 108 lines, mtime 2026-10-01
+- ✓ `lib/guard-lib.ts` — 168 lines, mtime 2026-10-02
 
 **Tests**
 

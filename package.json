@@ -25,7 +25,7 @@
   "homepage": "https://github.com/hannesro/pi-secure-it#readme",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node security/tests/path-matcher.mjs && node security/tests/url-allowlist.mjs && node security/tests/symlink-escape.mjs && node security/tests/grep-filter.mjs"
+    "test": "node security/tests/path-matcher.mjs && node security/tests/url-allowlist.mjs && node security/tests/symlink-escape.mjs && node security/tests/grep-filter.mjs && node security/tests/l1-attribution.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.78"

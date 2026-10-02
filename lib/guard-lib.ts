@@ -105,3 +105,63 @@ export function permissionSystemActive(ctx: SessionLike, store: Record<symbol, u
 export function layer2Mode(policy: { layer2?: Layer2Mode }, ctx: SessionLike, store?: Record<symbol, unknown>): Layer2Mode {
 	return policy.layer2 ?? (permissionSystemActive(ctx, store) ? "floor" : "guard");
 }
+
+// ---------- Layer 1 violation attribution ----------
+
+const EPERM_RE = /operation not permitted|EPERM|EACCES/i;
+
+/**
+ * The path a sandboxed bash command was refused, from its error output, as
+ * an absolute path. Handles `tool: ./rel: Operation not permitted`,
+ * quoted paths (`cannot touch 'x.pem'`), `~/…` and absolute paths. Relative
+ * paths resolve against the command's working directory, never against `/`.
+ */
+export function extractBlockedPath(output: string, cwd: string, home: string): string | undefined {
+	for (const line of output.split("\n").reverse()) {
+		const m = EPERM_RE.exec(line);
+		if (!m) continue;
+		// The segment right before the error text, e.g. "grep: ./.env: Operation…" → "./.env".
+		const before = line.slice(0, m.index).replace(/[\s:]+$/, "");
+		const segment = before.split(/:\s+/).pop() ?? "";
+		const quoted = /['"“‘`]([^'"”’`]+)['"”’`]\s*$/.exec(segment);
+		let token = (quoted?.[1] ?? segment.split(/\s+/).pop() ?? "").trim();
+		if (!token || /^(bash|sh|zsh)$/.test(token)) continue;
+		if (token === "~" || token.startsWith("~/")) token = home + token.slice(1);
+		const abs = token.startsWith("/") ? token : `${cwd.replace(/\/+$/, "")}/${token}`;
+		return normalizeAbs(abs);
+	}
+	return undefined;
+}
+
+function normalizeAbs(p: string): string {
+	const out: string[] = [];
+	for (const part of p.split("/")) {
+		if (!part || part === ".") continue;
+		if (part === "..") out.pop();
+		else out.push(part);
+	}
+	return `/${out.join("/")}`;
+}
+
+/** A folder Layer 1 may offer as a one-click write grant: never `/`, the home folder, or anything above it. */
+export function isSafeFolderGrant(dir: string, home: string): boolean {
+	const d = normalizeAbs(dir);
+	const h = normalizeAbs(home);
+	return d !== "/" && d !== h && !h.startsWith(`${d}/`);
+}
+
+/**
+ * Whether an absolute path matches one of the policy's path patterns, with the
+ * same semantics as Layer 2: `/…` and `~/…` are full-path prefixes or globs,
+ * `.` is the project root, anything else matches the basename (glob allowed).
+ */
+export function matchesPolicyPattern(absPath: string, pattern: string, cwd: string, home: string): boolean {
+	const p = pattern === "~" ? home : pattern.startsWith("~/") ? `${home}/${pattern.slice(2)}` : pattern;
+	const ci = process.platform === "darwin" ? "i" : "";
+	const glob = (s: string) =>
+		new RegExp(`^${s.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\x00").replace(/\*/g, "[^/]*").replace(/\x00/g, ".*").replace(/\?/g, "[^/]")}$`, ci);
+	if (p === ".") return absPath === cwd || absPath.startsWith(`${cwd}/`);
+	if (p.startsWith("/")) return p.includes("*") ? glob(p).test(absPath) : absPath === p || absPath.startsWith(`${p}/`);
+	const base = absPath.slice(absPath.lastIndexOf("/") + 1);
+	return p.includes("*") ? glob(p).test(base) : ci ? base.toLowerCase() === p.toLowerCase() : base === p;
+}

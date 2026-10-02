@@ -44,11 +44,12 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type BashOperations, createBashTool, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { readPolicyForUpdate } from "../lib/guard-lib";
+import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, readPolicyForUpdate } from "../lib/guard-lib";
 
 interface SandboxConfig extends SandboxRuntimeConfig {
 	enabled?: boolean;
@@ -253,13 +254,20 @@ function createSandboxedBashOps(opts?: {
 					signal?.removeEventListener("abort", onAbort);
 
 					let offending: string | undefined;
+					let readDenied = false;
 					if (/operation not permitted|EPERM|EACCES/i.test(outputTail)) {
-						const pathMatch = outputTail.match(/['“‘]?(\/[\w./~+-]+|~\/[\w./+-]+)['”’]?\s*:?\s*(?:operation not permitted|EPERM|EACCES)/i);
-						offending = pathMatch?.[1];
+						// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
+						offending = extractBlockedPath(outputTail, cwd, homedir());
+						// A denyRead path: a write grant would not help, and one-click read
+						// grants for secrets are not offered. Tell the user, do not prompt.
+						if (offending) {
+							const denyRead = (loadConfig(cwd).filesystem?.denyRead ?? []) as string[];
+							readDenied = denyRead.some((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
+						}
 						const configDirHint = offending && /\.config\/|\.kube\/|\.docker\/|\.netrc|\.aws\/|\.npmrc|\.gitconfig/.test(offending);
 
 						let hint = `\n💡 pi-sandbox: filesystem access blocked.\n`;
-						if (offending) hint += `   Path: ${offending}\n`;
+						if (offending) hint += `   Path: ${offending}${readDenied ? " (denyRead: reading it is blocked by policy)" : ""}\n`;
 						hint += `   This is the pi sandbox (Layer 1), NOT macOS Full Disk Access / TCC.\n`;
 						if (configDirHint) {
 							hint +=
@@ -275,7 +283,7 @@ function createSandboxedBashOps(opts?: {
 								`   or write inside the project directory (${cwd}).\n`;
 						}
 						hint += `   Policy: ~/.pi/agent/extensions/sandbox.json (+ <cwd>/.pi/sandbox.json overrides).\n`;
-						if (opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
+						if (opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways && !readDenied) {
 							hint += `   → Waiting for your decision in the prompt above before this bash call returns to the model.\n`;
 						}
 						onData(Buffer.from(hint));
@@ -285,26 +293,32 @@ function createSandboxedBashOps(opts?: {
 					// user decides. Otherwise the model gets the EPERM hint immediately,
 					// tries an alternative, and the prompt sits orphaned in the UI.
 					let decisionHint = "";
-					if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
-						const absPath = offending.startsWith("~") ? offending.replace(/^~/, process.env.HOME ?? "~") : offending;
-						const title = `Layer 1 (bash sandbox) blocked write to:\n  ${absPath}\n\nAllow future bash commands to write here?`;
+					if (offending && readDenied) {
+						appendFileSync(`${getAgentDir()}/audit.log`, `${JSON.stringify({ ts: new Date().toISOString(), layer: 1, tool: "bash", subject: offending, decision: "read-denied", cwd })}\n`);
+						opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a read of ${offending} (denyRead). Edit denyRead in sandbox.json if that is wrong.`, "warning");
+						decisionHint = `\n❌ pi-sandbox: ${offending} is in denyRead; reading it from bash is blocked by policy. Do not retry or work around it; ask the user.\n`;
+						onData(Buffer.from(decisionHint));
+					} else if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
+						const absPath = offending;
+						const title = `Layer 1 (bash sandbox) blocked a write to:\n  ${absPath}\n\nAllow future bash commands to write here?`;
 						const parentDir = dirname(absPath);
-						const options = [
-							"always for CURRENT project — whitelist this file (.pi/sandbox.json)",
-							`always for CURRENT project — whitelist parent folder ${parentDir} (.pi/sandbox.json)`,
-							"always for ALL projects — whitelist this file (~/.pi/agent/extensions/sandbox.json)",
-							`always for ALL projects — whitelist parent folder ${parentDir} (~/.pi/agent/extensions/sandbox.json)`,
-							"no  — leave blocked (default)",
-						];
+						// "no" first and pre-selected. Never offer /, the home folder or above as a folder grant.
+						const folderOk = isSafeFolderGrant(parentDir, homedir());
+						const NO = "no  — leave blocked (default)";
+						const CWD_FILE = "always for CURRENT project — whitelist this file (.pi/sandbox.json)";
+						const CWD_DIR = `always for CURRENT project — whitelist parent folder ${parentDir} (.pi/sandbox.json)`;
+						const ALL_FILE = "always for ALL projects — whitelist this file (~/.pi/agent/extensions/sandbox.json)";
+						const ALL_DIR = `always for ALL projects — whitelist parent folder ${parentDir} (~/.pi/agent/extensions/sandbox.json)`;
+						const options = folderOk ? [NO, CWD_FILE, CWD_DIR, ALL_FILE, ALL_DIR] : [NO, CWD_FILE, ALL_FILE];
 						try {
 							const chosen = await opts.ctx.ui.select(title, options, { timeout: 60_000 });
 							const ts = new Date().toISOString();
 							const auditPath = `${getAgentDir()}/audit.log`;
 							const scope: "cwd" | "global" | null =
-								chosen === options[0] || chosen === options[1] ? "cwd"
-								: chosen === options[2] || chosen === options[3] ? "global"
+								chosen === CWD_FILE || chosen === CWD_DIR ? "cwd"
+								: chosen === ALL_FILE || chosen === ALL_DIR ? "global"
 								: null;
-							const useParent = chosen === options[1] || chosen === options[3];
+							const useParent = chosen === CWD_DIR || chosen === ALL_DIR;
 							const subject = useParent ? parentDir : absPath;
 							if (scope) {
 								try {
