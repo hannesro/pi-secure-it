@@ -76,6 +76,10 @@ Force a role with `"layer2": "guard"` or `"layer2": "floor"` in `sandbox.json`. 
 
 `no — block` is pre-selected. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (file, folder or domain), kept in memory until the session ends (ADR-010).
 
+### File-name patterns
+
+An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (Layer 2) match it anywhere on disk; bash (Layer 1) matches it anywhere under the project directory, so `packages/api/.env` is covered too. Use a full path (`~/other/.env`) to cover a file outside the project for bash.
+
 ### Absolute-deny tier
 
 Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` is always a high-risk block. Allowing one call takes two menus, each with "block" pre-selected: pick *allow this ONE call*, then confirm with *Yes*. Pressing Enter twice blocks. The "always" option is never offered (ADR-009).

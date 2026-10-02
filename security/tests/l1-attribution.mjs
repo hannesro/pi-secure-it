@@ -1,6 +1,6 @@
 // Layer 1 violation attribution: which path was refused, whether it was a denyRead,
 // and which folders may be offered as a write grant. Imports the real lib.
-import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern } from '../../lib/guard-lib.ts';
+import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, toSandboxPatterns } from '../../lib/guard-lib.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -34,6 +34,13 @@ check('~ prefix is not a string prefix', !m('/Users/me/.sshfoo', '~/.ssh'));
 check('absolute glob', m('/Users/me/.pi/agent/extensions/x.ts', '~/.pi/agent/extensions/**'));
 check('. is the project root', m('/private/tmp/pi-guard-test/a/b', '.'));
 check('*.pem basename glob', m('/private/tmp/pi-guard-test/sub/x.pem', '*.pem'));
+
+const t = toSandboxPatterns(['.env', '*.key', '.', '~/.ssh', '/etc/x', 'config/app.yml', '~/.pi/agent/extensions/**']);
+check('file name gets **/', t[0] === '**/.env' && t[1] === '**/*.key');
+check('. stays', t[2] === '.');
+check('~ and absolute stay', t[3] === '~/.ssh' && t[4] === '/etc/x');
+check('relative path with / stays', t[5] === 'config/app.yml');
+check('globbed path stays', t[6] === '~/.pi/agent/extensions/**');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

@@ -49,7 +49,7 @@ import { dirname, join } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type BashOperations, createBashTool, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, readPolicyForUpdate } from "../lib/guard-lib";
+import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, readPolicyForUpdate, toSandboxPatterns } from "../lib/guard-lib";
 
 interface SandboxConfig extends SandboxRuntimeConfig {
 	enabled?: boolean;
@@ -407,9 +407,9 @@ export default function (pi: ExtensionAPI) {
 			network: config.network,
 			filesystem: config.filesystem
 				? {
-						denyRead: config.filesystem.denyRead,
+						denyRead: toSandboxPatterns(config.filesystem.denyRead),
 						allowWrite: config.filesystem.allowWrite,
-						denyWrite: config.filesystem.denyWrite,
+						denyWrite: toSandboxPatterns(config.filesystem.denyWrite),
 					}
 				: { denyRead: [], allowWrite: [], denyWrite: [], disabled: true },
 			ignoreViolations: configExt.ignoreViolations,
@@ -488,9 +488,9 @@ export default function (pi: ExtensionAPI) {
 				// enforced by Layer 2 (security-guard.ts), not sandbox-exec.
 				filesystem: config.filesystem
 					? {
-							denyRead: config.filesystem.denyRead,
+							denyRead: toSandboxPatterns(config.filesystem.denyRead),
 							allowWrite: config.filesystem.allowWrite,
-							denyWrite: config.filesystem.denyWrite,
+							denyWrite: toSandboxPatterns(config.filesystem.denyWrite),
 						}
 					: { denyRead: [], allowWrite: [], denyWrite: [], disabled: true },
 				ignoreViolations: configExt.ignoreViolations,

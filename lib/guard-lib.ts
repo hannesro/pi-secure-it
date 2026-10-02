@@ -165,3 +165,17 @@ export function matchesPolicyPattern(absPath: string, pattern: string, cwd: stri
 	const base = absPath.slice(absPath.lastIndexOf("/") + 1);
 	return p.includes("*") ? glob(p).test(base) : ci ? base.toLowerCase() === p.toLowerCase() : base === p;
 }
+
+/**
+ * Translate policy path patterns for sandbox-runtime (Layer 1).
+ *
+ * Layer 2 treats an entry without `/` or `~` (".env", "*.key") as a file name
+ * that matches anywhere. sandbox-runtime resolves the same entry against the
+ * working directory, so ".env" covered only `<cwd>/.env` and "*.key" only
+ * top-level files; `sub/.env` stayed readable from bash. Prefix such entries
+ * with `**\/` so both layers mean the same thing. `.` and entries with a path
+ * are passed through unchanged.
+ */
+export function toSandboxPatterns(patterns: readonly string[]): string[] {
+	return patterns.map((p) => (p === "." || p.includes("/") || p.startsWith("~") ? p : `**/${p}`));
+}
